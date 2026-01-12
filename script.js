@@ -75,163 +75,243 @@ const SECTIONS = [
   }
 ];
 
-// ====== 렌더링 ======
-const $questions = document.getElementById("questions");
+const STORE_KEY = "studycrack_tamgu_mbti_answers_v2";
 
-function qId(sectionId, index) {
-  return `${sectionId}_${index + 1}`;
-}
-
-function render() {
-  $questions.innerHTML = "";
-
+// ====== Flatten (한 페이지 한 문항) ======
+function flattenSections() {
+  const list = [];
   SECTIONS.forEach((sec) => {
-    const secTitle = document.createElement("div");
-    secTitle.className = "section-title";
-    secTitle.textContent = sec.title;
-    $questions.appendChild(secTitle);
-
     sec.questions.forEach((q, idx) => {
-      const id = qId(sec.id, idx);
-
-      const wrapper = document.createElement("div");
-      wrapper.className = "question";
-
-      const title = document.createElement("p");
-      title.className = "q-title";
-      title.textContent = `${idx + 1}. ${q[0]}`;
-      wrapper.appendChild(title);
-
-      const sub = document.createElement("p");
-      sub.className = "q-sub";
-      sub.innerHTML = `${q[1]}<br>${q[2]}`;
-      wrapper.appendChild(sub);
-
-      const likert = document.createElement("div");
-      likert.className = "likert";
-
-      const left = document.createElement("div");
-      left.className = "end left";
-      left.textContent = "동의함";
-      likert.appendChild(left);
-
-      const dots = document.createElement("div");
-      dots.className = "dots";
-
-      for (let v = 1; v <= 5; v++) {
-        const dot = document.createElement("label");
-        dot.className = `dot v${v}`;
-        dot.title = `${v}점`;
-
-        const input = document.createElement("input");
-        input.type = "radio";
-        input.name = id;
-        input.value = String(v);
-
-        input.addEventListener("change", () => {
-          const group = dots.querySelectorAll(".dot");
-          group.forEach((el) => el.classList.remove("checked"));
-          dot.classList.add("checked");
-        });
-
-        dot.appendChild(input);
-        dots.appendChild(dot);
-      }
-
-      likert.appendChild(dots);
-
-      const right = document.createElement("div");
-      right.className = "end right";
-      right.textContent = "동의하지 않음";
-      likert.appendChild(right);
-
-      wrapper.appendChild(likert);
-      $questions.appendChild(wrapper);
+      list.push({
+        sectionId: sec.id,
+        sectionTitle: sec.title,
+        left: sec.left,
+        right: sec.right,
+        qIndexInSection: idx,
+        title: q[0],
+        a: q[1],
+        b: q[2]
+      });
     });
   });
+  return list;
 }
 
-render();
+const FLAT = flattenSections(); // 총 40문항
+let cursor = 0;
 
-// ====== 점수 계산 ======
-function getAnswers() {
-  const answers = {};
+// answers: key = "CI_1" 같은 형태
+const answers = {};
 
-  SECTIONS.forEach((sec) => {
-    sec.questions.forEach((_, idx) => {
-      const id = qId(sec.id, idx);
-      const checked = document.querySelector(`input[name="${id}"]:checked`);
-      answers[id] = checked ? Number(checked.value) : null;
+// ====== DOM ======
+const $survey = document.getElementById("survey");
+const $results = document.getElementById("results");
+
+const $progressText = document.getElementById("progressText");
+const $axisText = document.getElementById("axisText");
+const $sectionTitle = document.getElementById("sectionTitle");
+const $qTitle = document.getElementById("qTitle");
+const $qSub = document.getElementById("qSub");
+const $leftLabel = document.getElementById("leftLabel");
+const $rightLabel = document.getElementById("rightLabel");
+const $dots = document.getElementById("dots");
+
+const $metricGrid = document.getElementById("metricGrid");
+const $typeCode = document.getElementById("typeCode");
+const $typeTag = document.getElementById("typeTag");
+
+const $btnPrev = document.getElementById("btnPrev");
+const $btnNext = document.getElementById("btnNext");
+const $btnSave = document.getElementById("btnSave");
+const $btnLoad = document.getElementById("btnLoad");
+const $btnReset = document.getElementById("btnReset");
+
+const $btnBack = document.getElementById("btnBack");
+const $btnCopy = document.getElementById("btnCopy");
+
+// ====== helpers ======
+function qId(sectionId, idxInSection) {
+  return `${sectionId}_${idxInSection + 1}`;
+}
+function currentKey() {
+  const item = FLAT[cursor];
+  return qId(item.sectionId, item.qIndexInSection);
+}
+function axisLabel(sec) {
+  const map = {
+    CI: "C ↔ I",
+    SM: "S ↔ M",
+    DE: "D ↔ E",
+    RF: "R ↔ F"
+  };
+  return map[sec] || `${sec}`;
+}
+
+// ====== Render one question ======
+function renderQuestion() {
+  const item = FLAT[cursor];
+  const key = currentKey();
+
+  $progressText.textContent = `${cursor + 1} / ${FLAT.length}`;
+  $axisText.textContent = axisLabel(item.sectionId);
+  $sectionTitle.textContent = item.sectionTitle;
+
+  $qTitle.textContent = `${cursor + 1}. ${item.title}`;
+  $qSub.innerHTML = `${item.a}<br>${item.b}`;
+
+  $leftLabel.textContent = item.left;
+  $rightLabel.textContent = item.right;
+
+  // dots 생성
+  $dots.innerHTML = "";
+  for (let v = 1; v <= 5; v++) {
+    const dot = document.createElement("label");
+    dot.className = "dot";
+    dot.title = `${v}점`;
+
+    const input = document.createElement("input");
+    input.type = "radio";
+    input.name = key;
+    input.value = String(v);
+
+    // 기존 응답 반영
+    if (answers[key] === v) {
+      input.checked = true;
+      dot.classList.add("checked");
+    }
+
+    input.addEventListener("change", () => {
+      // checked 스타일 갱신
+      $dots.querySelectorAll(".dot").forEach((el) => el.classList.remove("checked"));
+      dot.classList.add("checked");
+      answers[key] = v;
     });
-  });
 
-  return answers;
+    dot.appendChild(input);
+    $dots.appendChild(dot);
+  }
+
+  // 버튼 상태
+  $btnPrev.disabled = cursor === 0;
+  $btnPrev.style.opacity = cursor === 0 ? ".55" : "1";
+
+  $btnNext.textContent = cursor === FLAT.length - 1 ? "결과 보기" : "다음";
 }
 
-function validateAll(answers) {
-  const missing = [];
-
-  SECTIONS.forEach((sec) => {
-    sec.questions.forEach((_, idx) => {
-      const id = qId(sec.id, idx);
-      if (answers[id] == null) missing.push(id);
-    });
-  });
-
-  return missing;
+// ====== Navigation with validation ======
+function requireAnswerOrAlert() {
+  const key = currentKey();
+  if (!answers[key]) {
+    alert("질문에 응답해주세요");
+    return false;
+  }
+  return true;
 }
 
-// 각 문항 r(1~5):
-// left 기여 = (6 - r), right 기여 = r
-// 축별 최대 = n * 5
-function calcScores(answers) {
+$btnPrev.addEventListener("click", () => {
+  if (cursor === 0) return;
+  cursor -= 1;
+  renderQuestion();
+  window.scrollTo({ top: 0, behavior: "smooth" });
+});
+
+$btnNext.addEventListener("click", () => {
+  // ✅ 무응답 차단
+  if (!requireAnswerOrAlert()) return;
+
+  if (cursor === FLAT.length - 1) {
+    // 마지막 → 결과
+    showResults();
+    return;
+  }
+
+  cursor += 1;
+  renderQuestion();
+  window.scrollTo({ top: 0, behavior: "smooth" });
+});
+
+// ====== Save/Load/Reset ======
+$btnSave.addEventListener("click", () => {
+  localStorage.setItem(STORE_KEY, JSON.stringify({ answers, cursor }));
+  alert("임시저장 완료!");
+});
+
+$btnLoad.addEventListener("click", () => {
+  const raw = localStorage.getItem(STORE_KEY);
+  if (!raw) return alert("저장된 응답이 없습니다.");
+  const data = JSON.parse(raw);
+
+  // 복원
+  Object.keys(answers).forEach((k) => delete answers[k]);
+  Object.assign(answers, data.answers || {});
+  cursor = typeof data.cursor === "number" ? Math.min(Math.max(0, data.cursor), FLAT.length - 1) : 0;
+
+  alert("불러오기 완료!");
+  renderQuestion();
+});
+
+$btnReset.addEventListener("click", () => {
+  if (!confirm("정말 전체 응답을 초기화할까요?")) return;
+  Object.keys(answers).forEach((k) => delete answers[k]);
+  localStorage.removeItem(STORE_KEY);
+  cursor = 0;
+  alert("초기화 완료!");
+  renderQuestion();
+  window.scrollTo({ top: 0, behavior: "smooth" });
+});
+
+// ====== Scoring (좌+우=100%) ======
+// 문항 응답 r(1~5)
+// rightRatio = (r-1)/4  -> 0..1
+// leftRatio  = 1-rightRatio
+//
+// 축별 평균 비율을 구하고, %는 반드시 합 100.0 되도록 "퍼밀"로 처리
+function calcScores() {
   const out = {};
-
   SECTIONS.forEach((sec) => {
-    let leftSum = 0;
-    let rightSum = 0;
+    let rightSumRatio = 0;
     const n = sec.questions.length;
 
-    sec.questions.forEach((_, idx) => {
-      const id = qId(sec.id, idx);
-      const r = answers[id];
+    for (let i = 0; i < n; i++) {
+      const key = qId(sec.id, i);
+      const r = answers[key];
+      if (!r) throw new Error(`Missing answer: ${key}`);
 
-      // 안전장치: 혹시 validateAll을 우회해도 미응답이 계산에 들어가지 않게 막음
-      if (r == null) {
-        throw new Error(`Missing answer: ${id}`);
-      }
+      const right = (Number(r) - 1) / 4; // 0..1
+      rightSumRatio += right;
+    }
 
-      const val = Math.min(5, Math.max(1, Number(r)));
-      leftSum += (6 - val);
-      rightSum += val;
-    });
+    const rightAvg = rightSumRatio / n;      // 0..1
+    const leftAvg = 1 - rightAvg;            // 0..1
 
-    const max = n * 5;
-    const leftPct = Math.round((leftSum / max) * 1000) / 10;   // 소수 1자리
-    const rightPct = Math.round((rightSum / max) * 1000) / 10;
+    // 퍼밀(1000단위)로 만든 뒤 합이 정확히 1000이 되게 처리
+    let rightPermil = Math.round(rightAvg * 1000);
+    if (rightPermil < 0) rightPermil = 0;
+    if (rightPermil > 1000) rightPermil = 1000;
+    const leftPermil = 1000 - rightPermil;
 
-    const winner = (rightSum > leftSum) ? sec.right : sec.left; // 동점이면 왼쪽
+    const rightPct = rightPermil / 10; // 소수 1자리
+    const leftPct = leftPermil / 10;
+
+    const winner = rightPermil > leftPermil ? sec.right : sec.left;
 
     out[sec.id] = {
       axisTitle: sec.title,
       left: sec.left,
       right: sec.right,
-      leftSum,
-      rightSum,
       leftPct,
       rightPct,
-      winner
+      winner,
+      rightPermil,
+      leftPermil
     };
   });
-
   return out;
 }
 
 function typeFromScores(scores) {
   const order = ["CI", "SM", "DE", "RF"];
-  let code = "";
-  order.forEach((k) => (code += scores[k].winner));
-  return code;
+  return order.map((k) => scores[k].winner).join("");
 }
 
 function shortTag(scores) {
@@ -245,19 +325,12 @@ function shortTag(scores) {
     R: "계획/루틴 중심",
     F: "상황/유연 중심"
   };
-
   const code = typeFromScores(scores);
   const parts = code.split("").map((c) => map[c]).filter(Boolean);
   return parts.slice(0, 2).join(" · ");
 }
 
-// ====== 결과 UI ======
-const $survey = document.getElementById("survey");
-const $results = document.getElementById("results");
-const $metricGrid = document.getElementById("metricGrid");
-const $typeCode = document.getElementById("typeCode");
-const $typeTag = document.getElementById("typeTag");
-
+// ====== Results UI ======
 function renderResults(scores) {
   $metricGrid.innerHTML = "";
 
@@ -288,25 +361,20 @@ function renderResults(scores) {
     head.appendChild(name);
     head.appendChild(type);
 
-    const bars = document.createElement("div");
-    bars.className = "bars";
-
     const barwrap = document.createElement("div");
     barwrap.className = "barwrap";
 
     const bar = document.createElement("div");
     bar.className = "bar";
-    bar.style.width = `${s.rightPct}%`; // 오른쪽 성향 비율
-
+    bar.style.width = "0%";
     barwrap.appendChild(bar);
-    bars.appendChild(barwrap);
 
     const pair = document.createElement("div");
     pair.className = "pair";
-    pair.innerHTML = `<span><b>${s.left}</b> ${s.leftPct}%</span><span><b>${s.right}</b> ${s.rightPct}%</span>`;
+    pair.innerHTML = `<span><b>${s.left}</b> ${s.leftPct.toFixed(1)}%</span><span><b>${s.right}</b> ${s.rightPct.toFixed(1)}%</span>`;
 
     card.appendChild(head);
-    card.appendChild(bars);
+    card.appendChild(barwrap);
     card.appendChild(pair);
 
     $metricGrid.appendChild(card);
@@ -321,116 +389,57 @@ function renderResults(scores) {
   $typeTag.textContent = shortTag(scores) || "요약 생성됨";
 }
 
-// ====== 이벤트 ======
-document.getElementById("btnSubmit").addEventListener("click", () => {
-  const answers = getAnswers();
-  const missing = validateAll(answers);
-
-  if (missing.length) {
-    alert(`아직 답하지 않은 문항이 있습니다. (${missing.length}개)\n모든 문항에 응답한 뒤 결과를 확인해주세요.`);
-    const first = missing[0];
-    const el = document.querySelector(`input[name="${first}"]`);
-    if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
-    return;
+function showResults() {
+  // 마지막에서만 오지만, 혹시라도 전체 응답 검증
+  for (const sec of SECTIONS) {
+    for (let i = 0; i < sec.questions.length; i++) {
+      const key = qId(sec.id, i);
+      if (!answers[key]) {
+        alert("질문에 응답해주세요");
+        // 해당 질문 위치로 이동
+        cursor = FLAT.findIndex((x) => qId(x.sectionId, x.qIndexInSection) === key);
+        if (cursor < 0) cursor = 0;
+        renderQuestion();
+        window.scrollTo({ top: 0, behavior: "smooth" });
+        return;
+      }
+    }
   }
 
-  const scores = calcScores(answers);
+  const scores = calcScores();
   renderResults(scores);
 
   $survey.classList.add("hidden");
   $results.classList.remove("hidden");
   window.scrollTo({ top: 0, behavior: "smooth" });
-});
+}
 
-document.getElementById("btnBack").addEventListener("click", () => {
+$btnBack.addEventListener("click", () => {
   $results.classList.add("hidden");
   $survey.classList.remove("hidden");
   window.scrollTo({ top: 0, behavior: "smooth" });
 });
 
-// 임시저장/불러오기
-const STORE_KEY = "studycrack_tamgu_mbti_answers_v1";
-
-document.getElementById("btnSave").addEventListener("click", () => {
-  const answers = getAnswers();
-  localStorage.setItem(STORE_KEY, JSON.stringify(answers));
-  alert("임시저장 완료!");
-});
-
-document.getElementById("btnLoad").addEventListener("click", () => {
-  const raw = localStorage.getItem(STORE_KEY);
-  if (!raw) {
-    alert("저장된 응답이 없습니다.");
-    return;
-  }
-
-  const answers = JSON.parse(raw);
-
-  SECTIONS.forEach((sec) => {
-    sec.questions.forEach((_, idx) => {
-      const id = qId(sec.id, idx);
-      const v = answers[id];
-      if (v == null) return;
-
-      const input = document.querySelector(`input[name="${id}"][value="${v}"]`);
-      if (!input) return;
-
-      input.checked = true;
-
-      const dots = input.closest(".dots");
-      if (dots) {
-        dots.querySelectorAll(".dot").forEach((el) => el.classList.remove("checked"));
-        input.parentElement.classList.add("checked");
-      }
-    });
-  });
-
-  alert("불러오기 완료!");
-});
-
-document.getElementById("btnReset").addEventListener("click", () => {
-  if (!confirm("정말 전체 응답을 초기화할까요?")) return;
-
-  document.querySelectorAll('input[type="radio"]').forEach((r) => (r.checked = false));
-  document.querySelectorAll(".dot").forEach((d) => d.classList.remove("checked"));
-
-  localStorage.removeItem(STORE_KEY);
-  alert("초기화 완료!");
-  window.scrollTo({ top: 0, behavior: "smooth" });
-});
-
-// 결과 복사
-document.getElementById("btnCopy").addEventListener("click", async () => {
-  const answers = getAnswers();
-  const missing = validateAll(answers);
-
-  if (missing.length) {
-    alert("결과가 아직 없습니다. 설문을 완료하고 결과를 확인한 뒤 복사해주세요.");
-    return;
-  }
-
-  const scores = calcScores(answers);
-  const code = typeFromScores(scores);
-
-  const lines = [];
-  lines.push(`탐구 MBTI: ${code}`);
-  ["CI", "SM", "DE", "RF"].forEach((k) => {
-    const s = scores[k];
-    lines.push(`${s.left} ${s.leftPct}% / ${s.right} ${s.rightPct}% (우세: ${s.winner})`);
-  });
-
-  const text = lines.join("\n");
-
+$btnCopy.addEventListener("click", async () => {
+  // 결과 복사 (현재 answers 기준)
   try {
+    const scores = calcScores();
+    const code = typeFromScores(scores);
+
+    const lines = [];
+    lines.push(`탐구 MBTI: ${code}`);
+    ["CI", "SM", "DE", "RF"].forEach((k) => {
+      const s = scores[k];
+      lines.push(`${s.left} ${s.leftPct.toFixed(1)}% / ${s.right} ${s.rightPct.toFixed(1)}% (우세: ${s.winner})`);
+    });
+
+    const text = lines.join("\n");
     await navigator.clipboard.writeText(text);
     alert("클립보드에 복사했어요!");
   } catch (e) {
-    const ta = document.createElement("textarea");
-    ta.value = text;
-    document.body.appendChild(ta);
-    ta.select();
-    document.execCommand("copy");
-    document.body.removeChild(ta);
-    alert("클립보드에 복사했어요!");
+    alert("복사에 실패했어요. (브라우저 권한/환경 확인)");
   }
 });
+
+// 초기 렌더
+renderQuestion();
