@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link rel="stylesheet" href="style.css"> 
+  <title>탐구 MBTI 설문</title>
+</head>
+<body>
+  <header class="topbar">
+    <div class="wrap">
+      <h1 class="title">성격 유형 테스트</h1>
+      <p class="subtitle">전문 평가팀이 2025년 4월 7일에 검토 및 지도</p>
+    </div>
+  </header>
+
+  <main class="container">
+    <div class="notice">
+      <div class="bulb">💡</div>
+      <div>
+        있는 그대로 솔직하게 답변해주세요. 귀하의 개인정보는 안전하게 보호되며 외부로 유출되지 않습니다.
+      </div>
+    </div>
+
+    <!-- Survey -->
+    <section id="survey" class="card">
+      <div class="card-head">
+        <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+          <div>
+            <div style="font-weight:1000;font-size:18px;letter-spacing:-.3px;">탐구 MBTI 설문</div>
+            <div style="color:var(--muted);font-size:13px;margin-top:4px;line-height:1.4;">
+              각 문항은 1~5점(5지선다)입니다. <b>1에 가까울수록 왼쪽 성향</b>, <b>5에 가까울수록 오른쪽 성향</b>입니다.
+            </div>
+          </div>
+          <div class="pillrow">
+            <span class="pill"><strong>C/I</strong> 개념 vs 문제</span>
+            <span class="pill"><strong>S/M</strong> 안정 vs 변형</span>
+            <span class="pill"><strong>D/E</strong> 데이터 vs 직관</span>
+            <span class="pill"><strong>R/F</strong> 루틴 vs 유연</span>
+          </div>
+        </div>
+        <div class="divider"></div>
+      </div>
+
+      <div class="qwrap">
+        <div id="questions"></div>
+      </div>
+
+      <div class="actions">
+        <div class="left-actions">
+          <button class="btn-secondary" id="btnSave">임시저장</button>
+          <button class="btn-secondary" id="btnLoad">불러오기</button>
+          <button class="btn-danger" id="btnReset">전체 초기화</button>
+        </div>
+        <div class="right-actions">
+          <button class="btn-primary" id="btnSubmit">결과 보기</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Results -->
+    <section id="results" class="card hidden" style="margin-top:16px;">
+      <div class="result-box">
+        <h2 class="result-title">결과</h2>
+        <p class="result-sub">
+          아래 퍼센트는 각 축에서의 상대 성향(0~100%)입니다. (각 축 10문항, 문항당 최대 5점 기준)
+        </p>
+
+        <div class="type-big">
+          <div>
+            <div style="font-weight:900;color:var(--muted);font-size:12px;">당신의 탐구 MBTI</div>
+            <div class="code" id="typeCode">----</div>
+          </div>
+          <div class="tag" id="typeTag">요약 생성됨</div>
+        </div>
+
+        <div style="height:12px;"></div>
+        <div class="grid" id="metricGrid"></div>
+
+        <div class="footer-note">
+          * 이 결과는 ‘공부 성향’ 기반의 자기진단 도구입니다. 문항 응답에 따라 달라질 수 있습니다.
+        </div>
+
+        <div class="actions" style="margin-top:14px;border-top:1px solid var(--line);">
+          <div class="left-actions">
+            <button class="btn-secondary" id="btnBack">설문으로 돌아가기</button>
+          </div>
+          <div class="right-actions">
+            <button class="btn-primary" id="btnCopy">결과 복사</button>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+  
+  <script src="script.js"></script>
+</body>
+</html>
